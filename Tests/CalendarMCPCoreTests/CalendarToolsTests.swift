@@ -25,31 +25,27 @@ struct CalendarToolsTests {
 
     // MARK: Catalogue
 
-    @Test("Every tool has a unique name, title and description")
-    func catalogueIsWellFormed() {
+    /// One pass over the catalogue for everything that must hold for every tool: a
+    /// unique name, a real title and description, annotations that match what the tool
+    /// actually does, and a verb prefix exactly on the tools that write. Three
+    /// previously separate tests collapsed into one — they all walked the same
+    /// catalogue checking facets of the same read/write classification.
+    @Test("Catalogue tools are well-formed and consistently classified")
+    func catalogueIsWellFormedAndClassified() {
         let names = ToolCatalog.all().map(\.name)
         #expect(names.count == Set(names).count)
+
+        let reads = ["calendar_status", "calendars_list", "calendar_search", "calendar_get"]
         for tool in ToolCatalog.all() {
             #expect(tool.description?.isEmpty == false, "\(tool.name) has no description")
             #expect(tool.title?.isEmpty == false, "\(tool.name) has no title")
-        }
-    }
 
-    @Test("Annotations match what each tool actually does")
-    func annotationsAreHonest() {
-        let reads = ["calendar_status", "calendars_list", "calendar_search", "calendar_get"]
-        for tool in ToolCatalog.all() {
-            #expect(tool.annotations.readOnlyHint == reads.contains(tool.name), "\(tool.name)")
+            let isRead = reads.contains(tool.name)
+            #expect(tool.annotations.readOnlyHint == isRead, "\(tool.name)")
             #expect(tool.annotations.destructiveHint == (tool.name == "delete_event"))
-        }
-    }
 
-    @Test("Write tools carry a verb prefix and reads do not")
-    func namingConventionHolds() {
-        for tool in ToolCatalog.all() {
-            let isWrite = tool.annotations.readOnlyHint == false
             let hasVerb = ["create_", "update_", "delete_"].contains { tool.name.hasPrefix($0) }
-            #expect(isWrite == hasVerb, "\(tool.name)")
+            #expect(isRead == !hasVerb, "\(tool.name)")
         }
     }
 
@@ -120,7 +116,10 @@ struct CalendarToolsTests {
             "2026-08-12T09:00:00+02:00", argument: "from", calendar: calendar)
         #expect(absolute.date == Fixtures.date(2026, 8, 12, 9, 0))
 
-        for bad in ["12/08/2026", "tomorrow", "2026-13-01", "2026-08-12 09:00"] {
+        // Each exercises a distinct rejection branch: wrong shape entirely, an
+        // in-range-looking value that fails a numeric bound, and the right shape with
+        // the wrong date/time separator.
+        for bad in ["12/08/2026", "2026-13-01", "2026-08-12 09:00"] {
             #expect(throws: ToolError.self) {
                 try DateParsing.parse(bad, argument: "from", calendar: calendar)
             }
