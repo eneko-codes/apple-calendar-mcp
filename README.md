@@ -149,8 +149,7 @@ designated => identifier "codes.eneko.apple-calendar-mcp" and anchor apple gener
               and certificate leaf[subject.CN] = "Apple Development: …"
 ```
 
-That survives rebuilds — verified by installing two builds with different cdhashes and
-the same identity, with no second consent dialog. `pack.sh` prints the requirement on
+That survives rebuilds: same identity, same requirement, no second consent dialog. `pack.sh` prints the requirement on
 every build, so a silent regression to ad-hoc is visible immediately.
 
 **Changing certificate re-prompts once.** The requirement quotes the certificate, so
