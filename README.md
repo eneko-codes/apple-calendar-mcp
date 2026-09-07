@@ -207,8 +207,7 @@ swift test
 never touch a real calendar — see `CLAUDE.md`, whose first section is the rule that makes
 that non-negotiable.
 
-Manual verification against a live calendar is the owner's job; `verification.md` is
-the script for it.
+Manual verification against a live calendar is the owner's job.
 
 ## Licence
 
