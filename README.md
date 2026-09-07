@@ -11,9 +11,6 @@ No network, no credentials, no cloud API. iCloud is only the sync engine that fi
 local calendar store; this server reads and writes that local store, and the gate is
 macOS **privacy consent** rather than authentication.
 
-Reminders are a separate EventKit entity with a separate permission, and will get their
-own repository.
-
 Not affiliated with or endorsed by Apple Inc.
 
 ## Requirements
@@ -34,6 +31,18 @@ Not affiliated with or endorsed by Apple Inc.
 | `create_event` | write | Adds an event. Cannot invite attendees or create a series. |
 | `update_event` | write | Changes fields. Refuses events that have ended. |
 | `delete_event` | **destructive** | Permanent. Requires `confirm: true`. Refuses events that have ended. |
+
+## Frameworks and APIs
+
+| Used | For | Reference |
+|---|---|---|
+| EventKit — `EKEventStore`, `EKEvent`, `EKCalendar`, `EKAlarm`, `EKRecurrenceRule`, `EKParticipant`, `EKSpan` | Every read and write | [EventKit](https://developer.apple.com/documentation/eventkit) |
+| `NSCalendarsFullAccessUsageDescription` | The consent string macOS shows | [Information Property List](https://developer.apple.com/documentation/bundleresources/information-property-list/nscalendarsfullaccessusagedescription) |
+
+EventKit areas this server does not use: `EKReminder` (a separate entity with its own
+permission), `EKStructuredLocation` (`location` is carried as plain text, so no
+location-based alarm), `EKVirtualConferenceProvider`, and `EKRecurrenceDayOfWeek` —
+recurrence rules and participants are read and summarised, never constructed.
 
 ## The rules worth knowing before you use it
 
@@ -203,7 +212,7 @@ swift build
 swift test
 ```
 
-35 tests, all against an in-memory fake at a fixed instant. They need no permissions and
+33 tests, all against an in-memory fake at a fixed instant. They need no permissions and
 never touch a real calendar — see `CLAUDE.md`, whose first section is the rule that makes
 that non-negotiable.
 

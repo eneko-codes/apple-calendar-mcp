@@ -16,6 +16,20 @@ Do not modify or delete an existing calendar event.
 
 A local MCP server (Swift 6, stdio transport) exposing the macOS Calendar app through `EventKit`. No network, no credential, no cloud API — iCloud is only the sync engine, and the gate is TCC consent.
 
+## Apple frameworks
+
+[EventKit](https://developer.apple.com/documentation/eventkit) is the whole of it. Used: `EKEventStore` (authorisation, fetch, save, remove), `EKEvent`, `EKCalendar`, `EKAlarm`, `EKRecurrenceRule`/`EKRecurrenceEnd` (read only), `EKParticipant` (read only), `EKSpan`. Consent key: [`NSCalendarsFullAccessUsageDescription`](https://developer.apple.com/documentation/bundleresources/information-property-list/nscalendarsfullaccessusagedescription).
+
+## Native surface not used
+
+The framework offers more than this server exposes. Before proposing a tool, check it against this list rather than assuming.
+
+- `EKReminder` — reminders are a separate entity behind a separate permission.
+- `EKStructuredLocation` — a location object with a geofence. `event.location` is plain text here, which is why there is no location-based alarm.
+- `EKRecurrenceDayOfWeek`, and constructing an `EKRecurrenceRule` at all — recurrence is read and summarised, never written.
+- `EKVirtualConferenceDescriptor`/`EKVirtualConferenceProvider` — for an app that supplies conference links.
+- `EKParticipant` writes — EventKit cannot invite anyone; that is Calendar.app's job.
+
 ## Commands
 
 ```bash
