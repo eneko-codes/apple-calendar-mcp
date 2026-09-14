@@ -22,6 +22,7 @@ public enum ToolError: Error, Equatable {
     case notFound(id: String)
     case calendarNotFound(title: String, available: [String])
     case calendarReadOnly(title: String)
+    case cannotMoveRecurringEvent(title: String)
     case confirmationRequired(action: String)
     case nothingToUpdate
     case storeFailure(String)
@@ -83,6 +84,16 @@ public enum ToolError: Error, Equatable {
 
                 Subscribed and holiday calendars are read-only by nature. Call
                 calendars_list to see which ones accept writes.
+                """
+
+        case .cannotMoveRecurringEvent(let title):
+            return """
+                Cannot move '\(title)' to another calendar: it is part of a recurring series.
+
+                EventKit has no concept of one occurrence living in a different calendar
+                from the rest of the series, so a recurring event's calendar is not
+                changed here at all — not this occurrence, not the whole series. Move it
+                from Calendar.app.
                 """
 
         case .confirmationRequired(let action):

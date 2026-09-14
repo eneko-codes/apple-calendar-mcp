@@ -215,7 +215,10 @@ public enum ToolCatalog {
             pass "" to empty location, notes or url, and [] to remove every alarm.
 
             Works on past, in-progress and upcoming events alike. For a repeating series, \
-            'span' decides whether the change hits one occurrence or all later ones.
+            'span' decides whether the change hits one occurrence or all later ones — \
+            except 'calendar', which always moves the whole series: EventKit has no \
+            concept of one occurrence living in a different calendar from the rest, so a \
+            recurring event's calendar cannot be changed here at all.
             """,
         inputSchema: object(
             properties: [
@@ -224,6 +227,9 @@ public enum ToolCatalog {
                 "title": string("New title."),
                 "start": string("New start. \(dateHelp)"),
                 "end": string("New end. \(dateHelp)"),
+                "calendar": string(
+                    "Move the event to this calendar, exactly as calendars_list shows it. "
+                        + "Refused for a recurring event."),
                 "location": clearableString("New location. \"\" clears it."),
                 "notes": clearableString("New notes. \"\" clears them."),
                 "url": clearableString("New URL. \"\" clears it."),

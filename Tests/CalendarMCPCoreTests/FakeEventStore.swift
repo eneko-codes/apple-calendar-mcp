@@ -77,8 +77,24 @@ final class FakeEventStore: EventStore, @unchecked Sendable {
         guard let index = events.firstIndex(where: { $0.id == id }) else {
             throw ToolError.notFound(id: id.encoded)
         }
-        updated.append((id, span))
         let current = events[index]
+
+        var resultingCalendarTitle = current.calendarTitle
+        if let requested = changes.calendarTitle {
+            guard !current.isRecurring else {
+                throw ToolError.cannotMoveRecurringEvent(title: current.title)
+            }
+            guard let target = calendarList.first(where: { $0.title == requested }) else {
+                throw ToolError.calendarNotFound(
+                    title: requested, available: calendarList.filter(\.isWritable).map(\.title))
+            }
+            guard target.isWritable else {
+                throw ToolError.calendarReadOnly(title: requested)
+            }
+            resultingCalendarTitle = requested
+        }
+
+        updated.append((id, span))
         func applied<T>(_ edit: FieldEdit<T>, _ fallback: T?) -> T? {
             switch edit {
             case .unchanged: return fallback
@@ -91,7 +107,7 @@ final class FakeEventStore: EventStore, @unchecked Sendable {
             title: applied(changes.title, current.title) ?? current.title,
             start: applied(changes.start, current.start) ?? current.start,
             end: applied(changes.end, current.end) ?? current.end,
-            calendarTitle: current.calendarTitle,
+            calendarTitle: resultingCalendarTitle,
             isAllDay: current.isAllDay,
             location: applied(changes.location, current.location),
             notes: applied(changes.notes, current.notes),

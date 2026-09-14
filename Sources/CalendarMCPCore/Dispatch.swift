@@ -155,6 +155,7 @@ public struct CalendarTools: Sendable {
         changes.title = arguments.stringEdit("title")
         changes.start = try arguments.dateEdit("start")
         changes.end = try arguments.dateEdit("end")
+        changes.calendarTitle = arguments.optionalString("calendar")
         changes.location = arguments.stringEdit("location")
         changes.notes = arguments.stringEdit("notes")
         changes.url = arguments.stringEdit("url")
