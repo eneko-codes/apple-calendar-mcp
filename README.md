@@ -27,10 +27,10 @@ Not affiliated with or endorsed by Apple Inc.
 | `calendar_status` | read | Reports the permission, the binary in use and the effective limits. Reads no events. |
 | `calendars_list` | read | Every calendar, its account, and whether it accepts writes. |
 | `calendar_search` | read | Events in a date range. Echoes the range, time zone and calendars it actually used. |
-| `calendar_get` | read | Full record for one id, including whether it can still be edited. |
+| `calendar_get` | read | Full record for one id, including whether it is past, in progress or upcoming. |
 | `create_event` | write | Adds an event. Cannot invite attendees or create a series. |
-| `update_event` | write | Changes fields. Refuses events that have ended. |
-| `delete_event` | **destructive** | Permanent. Requires `confirm: true`. Refuses events that have ended. |
+| `update_event` | write | Changes fields, including on a past event. Can move an event to another calendar; refuses that for a recurring one. |
+| `delete_event` | **destructive** | Permanent. Requires `confirm: true`. Works on past events too. |
 
 ## Frameworks and APIs
 
@@ -78,6 +78,12 @@ It also cannot create repeating events.
 mistyped range can otherwise sweep a decade. The cap is interpolated into the tool's own
 description, so Claude sees the real limit rather than a stale one.
 
+**Moving an event to another calendar is a whole-series operation.** `update_event`'s
+`calendar` argument sets `EKEvent.calendar` and re-saves — the same mechanism
+Calendar.app itself uses. But a recurring event's calendar is a property of the series,
+not of one occurrence, and EventKit does not define splitting a series across calendars,
+so `update_event` refuses `calendar` outright for a recurring event, `span` notwithstanding.
+
 `calendar_search`'s own `calendars` argument fails **closed**: a name that matches
 nothing yields no events, never every event. That is not the obvious behaviour — EventKit
 reads an empty calendar filter as *every* calendar — and getting it wrong would turn a
@@ -114,9 +120,8 @@ System Settings → Privacy & Security → Calendars
 (Spanish UI: Ajustes del Sistema → Privacidad y seguridad → Calendarios).
 
 macOS 14 split calendar access into full and write-only. **Write-only is not enough**: it
-cannot read events back, so the server could neither confirm what it created nor enforce
-the rule against editing the past. `calendar_status` says so explicitly if that is the
-state you land in.
+cannot read events back, so the server could not confirm what it created. `calendar_status`
+says so explicitly if that is the state you land in.
 
 The binary is **its own privacy subject**: Claude Desktop launches MCP servers through
 `Contents/Helpers/disclaimer`, which calls `responsibility_spawnattrs_setdisclaim`, so the
@@ -194,6 +199,9 @@ tell which one answered.
 
 - **No repeating events can be created**, and no attendees invited. Both are EventKit
   limitations, not choices.
+- **A recurring event cannot change calendar.** Unlike the two above, this is this
+  server's own choice, not EventKit's: nothing documents what happens if you try, and a
+  wrong guess would corrupt a real series. See "the rules worth knowing" above.
 - **Identifiers are not durable.** Resynchronising an account can regenerate them, which
   is why every workflow starts with a search.
 - **An event that started before the searched range** appears with its real start date and
@@ -207,7 +215,7 @@ swift build
 swift test
 ```
 
-33 tests, all against an in-memory fake at a fixed instant. They need no permissions and
+All tests run against an in-memory fake at a fixed instant. They need no permissions and
 never touch a real calendar — see `CLAUDE.md`, whose first section is the rule that makes
 that non-negotiable.
 

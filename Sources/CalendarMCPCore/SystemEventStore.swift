@@ -175,6 +175,28 @@ public struct SystemEventStore: EventStore {
         if case .set(let value) = changes.start { event.startDate = value }
         if case .set(let value) = changes.end { event.endDate = value }
 
+        if let calendarTitle = changes.calendarTitle {
+            // A recurring event's calendar is a property of the whole series, not of one
+            // occurrence, and EventKit does not document splitting a series across
+            // calendars — so this is refused outright rather than guessed at.
+            guard !event.hasRecurrenceRules else {
+                throw ToolError.cannotMoveRecurringEvent(title: event.title ?? "(no title)")
+            }
+            guard
+                let target = store.calendars(for: .event).first(where: { $0.title == calendarTitle
+                })
+            else {
+                throw ToolError.calendarNotFound(
+                    title: calendarTitle,
+                    available: store.calendars(for: .event).filter(\.allowsContentModifications)
+                        .map(\.title))
+            }
+            guard target.allowsContentModifications else {
+                throw ToolError.calendarReadOnly(title: calendarTitle)
+            }
+            event.calendar = target
+        }
+
         switch changes.location {
         case .unchanged: break
         case .cleared: event.location = nil

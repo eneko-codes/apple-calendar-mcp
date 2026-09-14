@@ -246,6 +246,52 @@ struct CalendarToolsTests {
         #expect(store.updated.isEmpty)
     }
 
+    // MARK: Moving between calendars
+
+    @Test("An event can be moved to another calendar")
+    func eventCanBeMovedToAnotherCalendar() async {
+        let store = FakeEventStore()
+        let result = await call(
+            "update_event", ["id": .string("ev-past"), "calendar": .string("Personal")],
+            store: store)
+        #expect(!result.isError)
+        #expect(result.text.contains("Fields changed: calendar"))
+        #expect(result.text.contains("Personal"))
+        #expect(store.updated.count == 1)
+    }
+
+    @Test("Moving to an unknown calendar is refused")
+    func movingToUnknownCalendarIsRefused() async {
+        let store = FakeEventStore()
+        let result = await call(
+            "update_event", ["id": .string("ev-past"), "calendar": .string("Nope")], store: store)
+        #expect(result.isError)
+        #expect(result.text.contains("No calendar named"))
+        #expect(store.updated.isEmpty)
+    }
+
+    @Test("Moving to a read-only calendar is refused")
+    func movingToReadOnlyCalendarIsRefused() async {
+        let store = FakeEventStore()
+        let result = await call(
+            "update_event", ["id": .string("ev-past"), "calendar": .string("Holidays")],
+            store: store)
+        #expect(result.isError)
+        #expect(result.text.contains("read-only"))
+        #expect(store.updated.isEmpty)
+    }
+
+    @Test("A recurring event's calendar cannot be changed")
+    func recurringEventCalendarCannotBeChanged() async {
+        let store = FakeEventStore()
+        let id = store.events.first { $0.isRecurring }!.id.encoded
+        let result = await call(
+            "update_event", ["id": .string(id), "calendar": .string("Personal")], store: store)
+        #expect(result.isError)
+        #expect(result.text.contains("recurring series"))
+        #expect(store.updated.isEmpty)
+    }
+
     // MARK: Create
 
     @Test("An unknown calendar is refused, listing the writable ones")

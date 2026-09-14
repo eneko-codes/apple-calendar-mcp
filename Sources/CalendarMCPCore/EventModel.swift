@@ -205,6 +205,9 @@ public struct EventChanges: Sendable, Equatable {
     public var notes: FieldEdit<String> = .unchanged
     public var url: FieldEdit<String> = .unchanged
     public var alarmOffsetsMinutes: FieldEdit<[Int]> = .unchanged
+    /// Not a `FieldEdit`: an event always belongs to some calendar, so there is no
+    /// "cleared" state to represent — only absent (leave it) or a name to move it to.
+    public var calendarTitle: String?
 
     public init() {}
 
@@ -218,6 +221,7 @@ public struct EventChanges: Sendable, Equatable {
         if title != .unchanged { names.append("title") }
         if start != .unchanged { names.append("start") }
         if end != .unchanged { names.append("end") }
+        if calendarTitle != nil { names.append("calendar") }
         if location != .unchanged { names.append("location") }
         if notes != .unchanged { names.append("notes") }
         if url != .unchanged { names.append("url") }
