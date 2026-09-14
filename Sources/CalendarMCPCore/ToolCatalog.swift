@@ -214,10 +214,8 @@ public enum ToolCatalog {
             Changes fields on an existing event. Omitting a field leaves it as it is; \
             pass "" to empty location, notes or url, and [] to remove every alarm.
 
-            REFUSES any event that has already ended — finished events are the record of \
-            what happened. An event currently in progress can still be edited. For a \
-            repeating series, 'span' decides whether the change hits one occurrence or all \
-            later ones.
+            Works on past, in-progress and upcoming events alike. For a repeating series, \
+            'span' decides whether the change hits one occurrence or all later ones.
             """,
         inputSchema: object(
             properties: [
@@ -249,9 +247,9 @@ public enum ToolCatalog {
             Permanently deletes an event. Requires confirm=true and returns the full record \
             it removed together with a create_event call that would restore it.
 
-            REFUSES any event that has already ended. For a repeating series, 'span' \
-            decides whether one occurrence or every later one is removed — check which you \
-            mean before calling.
+            Works on past, in-progress and upcoming events alike. For a repeating series, \
+            'span' decides whether one occurrence or every later one is removed — check \
+            which you mean before calling.
             """,
         inputSchema: object(
             properties: [

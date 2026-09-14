@@ -155,11 +155,10 @@ public struct EventDetail: Sendable, Equatable {
         self.timeZoneIdentifier = timeZoneIdentifier
     }
 
-    /// The boundary the "history is not editable" rule turns on.
+    /// Whether the event is finished as of `now`, purely for display (see `Format`).
     ///
     /// It is the **end**, not the start: an event that is running right now has not
-    /// happened yet in any useful sense, and extending a meeting that is overrunning is
-    /// a real thing people need to do.
+    /// happened yet in any useful sense.
     public func hasEnded(asOf now: Date) -> Bool { end <= now }
 }
 

@@ -170,7 +170,7 @@ enum Fixtures {
             attendees: attendees, timeZoneIdentifier: timeZone.identifier)
     }
 
-    /// One event in each state the "history is not editable" rule cares about.
+    /// One event in each state `hasEnded`/`detail` distinguish: past, in progress, upcoming.
     static let events: [EventDetail] = [
         event(
             id: "ev-past", title: "Quarterly review",

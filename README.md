@@ -46,10 +46,6 @@ recurrence rules and participants are read and summarised, never constructed.
 
 ## The rules worth knowing before you use it
 
-**History is not editable.** `update_event` and `delete_event` refuse any event whose end
-time has passed. A finished event is the record of what happened. The boundary is the
-*end*, not the start — a meeting that is currently overrunning can still be extended.
-
 **Dates take exactly three forms:**
 
 ```
