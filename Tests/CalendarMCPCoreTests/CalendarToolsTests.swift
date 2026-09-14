@@ -205,31 +205,28 @@ struct CalendarToolsTests {
         #expect(result.isError)
     }
 
-    // MARK: The history rule
+    // MARK: Editing past events
 
-    @Test("An event that has ended cannot be updated")
-    func pastEventCannotBeUpdated() async {
+    @Test("An event that has ended can be updated")
+    func pastEventCanBeUpdated() async {
         let store = FakeEventStore()
         let result = await call(
             "update_event", ["id": .string("ev-past"), "title": .string("Rewritten")],
             store: store)
-        #expect(result.isError)
-        #expect(result.text.contains("already ended"))
-        #expect(store.updated.isEmpty)
+        #expect(!result.isError)
+        #expect(store.updated.count == 1)
     }
 
-    @Test("An event that has ended cannot be deleted")
-    func pastEventCannotBeDeleted() async {
+    @Test("An event that has ended can be deleted")
+    func pastEventCanBeDeleted() async {
         let store = FakeEventStore()
         let result = await call(
             "delete_event", ["id": .string("ev-past"), "confirm": .bool(true)], store: store)
-        #expect(result.isError)
-        #expect(store.deleted.isEmpty)
+        #expect(!result.isError)
+        #expect(store.deleted.count == 1)
     }
 
-    /// The boundary is the end, not the start — extending an overrunning meeting is a
-    /// real need, and the rule is about finished events, not started ones.
-    @Test("An event in progress can still be edited")
+    @Test("An event in progress can be edited")
     func runningEventIsEditable() async {
         let store = FakeEventStore()
         let result = await call(
@@ -400,10 +397,10 @@ struct CalendarToolsTests {
 
     // MARK: Detail
 
-    @Test("Detail states whether the event can still be edited")
-    func detailReportsEditability() async {
+    @Test("Detail states whether the event is past, in progress or upcoming")
+    func detailReportsState() async {
         let past = await call("calendar_get", ["id": .string("ev-past")])
-        #expect(past.text.contains("NOT editable"))
+        #expect(past.text.contains("ended"))
 
         let running = await call("calendar_get", ["id": .string("ev-running")])
         #expect(running.text.contains("in progress"))

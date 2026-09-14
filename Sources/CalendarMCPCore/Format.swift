@@ -157,15 +157,13 @@ public struct Format: Sendable {
                 + " · \(event.timeZoneIdentifier ?? calendar.timeZone.identifier)"
         }
 
-        // Stated up front so a caller knows whether a write will be accepted without
-        // having to attempt one and read the refusal.
         let state: String
         if event.hasEnded(asOf: now) {
-            state = "ended \(elapsed(since: event.end, now: now)) · NOT editable"
+            state = "ended \(elapsed(since: event.end, now: now))"
         } else if event.start <= now {
-            state = "in progress · editable"
+            state = "in progress"
         } else {
-            state = "upcoming · editable"
+            state = "upcoming"
         }
 
         var rows: [(String, String?)] = [

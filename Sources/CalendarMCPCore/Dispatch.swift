@@ -10,7 +10,8 @@ public struct CalendarTools: Sendable {
     private let store: any EventStore
     private let calendar: Calendar
     private let format: Format
-    /// Injected so the "already ended" rule can be tested at a fixed instant instead of
+    /// Injected so time-dependent output (elapsed-since text, the past/in-progress/
+    /// upcoming state shown in `detail`) can be tested at a fixed instant instead of
     /// depending on when the suite happens to run.
     private let now: @Sendable () -> Date
 
@@ -182,17 +183,11 @@ public struct CalendarTools: Sendable {
         return format.deleted(try await store.delete(id: id, span: span), span: span)
     }
 
-    /// Loads the event and enforces the one rule this server will not bend: a finished
-    /// event is the record of what happened, and nothing here rewrites it.
+    /// Loads the event and checks the one thing that still gates a write: the calendar
+    /// it lives in has to accept writes at all.
     private func requireEditable(_ id: EventID) async throws -> EventDetail {
         guard let event = try await store.fetch(id: id) else {
             throw ToolError.notFound(id: id.encoded)
-        }
-        let instant = now()
-        guard !event.hasEnded(asOf: instant) else {
-            throw ToolError.eventHasEnded(
-                title: "\(event.title) · \(DateParsing.dayWithYear(event.start, calendar: calendar))",
-                ended: format.elapsed(since: event.end, now: instant))
         }
         guard event.calendarIsWritable else {
             throw ToolError.calendarReadOnly(title: event.calendarTitle)

@@ -5,8 +5,7 @@ public enum CalendarAuthorization: Sendable, Equatable {
     case restricted
     case denied
     /// macOS 14+. Can create events but cannot read them back, so it is not enough for
-    /// this server: every write here confirms itself by re-reading, and the
-    /// "never edit a past event" rule needs to see the event first.
+    /// this server: every write here confirms itself by re-reading.
     case writeOnly
     case fullAccess
 
@@ -23,7 +22,6 @@ public enum ToolError: Error, Equatable {
     case notFound(id: String)
     case calendarNotFound(title: String, available: [String])
     case calendarReadOnly(title: String)
-    case eventHasEnded(title: String, ended: String)
     case confirmationRequired(action: String)
     case nothingToUpdate
     case storeFailure(String)
@@ -87,20 +85,6 @@ public enum ToolError: Error, Equatable {
                 calendars_list to see which ones accept writes.
                 """
 
-        case .eventHasEnded(let title, let ended):
-            return """
-                Cannot modify an event that has already ended.
-
-                  \(title) · ended \(ended)
-
-                Finished events are the record of what happened, and this server does not
-                edit them even with permission. If the change needs recording, create a
-                new event.
-
-                An event still in progress can be edited: the rule turns on the end time,
-                not the start.
-                """
-
         case .confirmationRequired(let action):
             return """
                 \(action) requires confirm=true.
@@ -155,8 +139,7 @@ public enum ToolError: Error, Equatable {
                 Only write-only Calendar access was granted, which is not enough.
 
                 macOS 14 split the permission in two. Write-only can add events but cannot
-                read them back, so this server could neither confirm what it created nor
-                enforce its rule against editing past events.
+                read them back, so this server could not confirm what it created.
 
                 Grant full access in:
                   System Settings → Privacy & Security → Calendars → enable "apple-calendar-mcp"

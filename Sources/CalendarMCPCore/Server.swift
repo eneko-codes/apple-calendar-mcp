@@ -7,7 +7,7 @@ public enum CalendarMCPServer {
     public static let version = "1.0.0"
 
     /// Returned from `initialize`. It carries what per-tool descriptions cannot state
-    /// once: the id workflow, the rule about history, and where policy actually lives.
+    /// once: the id workflow and where policy actually lives.
     public static let instructions = """
         Access to the macOS Calendar app through EventKit.
 
@@ -19,9 +19,6 @@ public enum CalendarMCPServer {
         Dates accept three forms: 2026-08-12 (whole day), 2026-08-12T09:00 (local time), \
         or 2026-08-12T09:00:00+02:00 (explicit offset). An event whose start and end are \
         both plain days is all-day.
-
-        This server will not modify or delete an event that has already ended. A finished \
-        event is the record of what happened. An event still in progress can be edited.
 
         EventKit cannot invite attendees and cannot create repeating events; both must be \
         done in Calendar.app.
