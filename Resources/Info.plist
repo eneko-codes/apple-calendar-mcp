@@ -9,14 +9,13 @@
 	<key>CFBundleIdentifier</key>
 	<string>codes.eneko.apple-calendar-mcp</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0.0</string>
+	<string>1.1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 
 	<!-- macOS 14 split calendar access into full and write-only. This server needs full
 	     access: write-only cannot read back what it created, so it could not confirm an
-	     event or enforce the "never edit a past event" rule. Key name verified against
-	     the tccd binary on macOS 26.5. -->
+	     event it just wrote. Key name verified against the tccd binary on macOS 26.5. -->
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Lets Claude read and manage your calendar events through this local MCP server.</string>
 </dict>
