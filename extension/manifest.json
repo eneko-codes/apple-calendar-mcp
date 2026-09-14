@@ -2,9 +2,9 @@
   "manifest_version": "0.3",
   "name": "apple-calendar-mcp",
   "display_name": "Apple Calendar",
-  "version": "1.0.0",
-  "description": "Read and manage macOS Calendar events through EventKit, without ever editing the past",
-  "long_description": "A local MCP server written in Swift that gives Claude access to the Calendar app on this Mac.\n\nThere is no network, no account and no API key. iCloud is only the sync engine that fills the local calendar store. The gate is macOS privacy consent, and the grant appears under System Settings \u2192 Privacy & Security \u2192 Calendars. Full access is required: write-only access cannot read events back, so the server could neither confirm what it created nor enforce the rule below.\n\nFinished events are never modified or deleted. A past event is the record of what happened, and this server refuses to rewrite it even when asked \u2014 though an event still in progress can be edited, so an overrunning meeting can be extended.\n\nPlug and play: there is nothing to configure. Every calendar is reachable; the only control over this server is its own per-tool permission switch below.\n\nEventKit cannot invite attendees and cannot create repeating events; both must be done in Calendar.app.\n\nNot affiliated with or endorsed by Apple Inc.",
+  "version": "1.1.0",
+  "description": "Read and manage macOS Calendar events through EventKit",
+  "long_description": "A local MCP server written in Swift that gives Claude access to the Calendar app on this Mac.\n\nThere is no network, no account and no API key. iCloud is only the sync engine that fills the local calendar store. The gate is macOS privacy consent, and the grant appears under System Settings \u2192 Privacy & Security \u2192 Calendars. Full access is required: write-only access cannot read events back, so the server could not confirm what it created.\n\nPlug and play: there is nothing to configure. Every calendar is reachable; the only control over this server is its own per-tool permission switch below.\n\nEventKit cannot invite attendees and cannot create repeating events; both must be done in Calendar.app.\n\nNot affiliated with or endorsed by Apple Inc.",
   "author": {
     "name": "eneko-codes",
     "url": "https://github.com/eneko-codes"
@@ -48,7 +48,7 @@
     },
     {
       "name": "calendar_get",
-      "description": "Read one event in full, including whether it can still be edited"
+      "description": "Read one event in full, including whether it is past, in progress or upcoming"
     },
     {
       "name": "create_event",
@@ -56,11 +56,11 @@
     },
     {
       "name": "update_event",
-      "description": "Change an event. Refuses events that have already ended."
+      "description": "Change an event, including one that has already ended."
     },
     {
       "name": "delete_event",
-      "description": "Permanently delete an event. Requires explicit confirmation; refuses events that have ended."
+      "description": "Permanently delete an event, including one that has already ended. Requires explicit confirmation."
     }
   ],
   "compatibility": {

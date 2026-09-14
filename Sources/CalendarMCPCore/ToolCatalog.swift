@@ -163,8 +163,8 @@ public enum ToolCatalog {
         title: "Full event record",
         description: """
             Returns everything stored for one event: times, calendar, location, notes, \
-            alarms, recurrence and attendees. Also reports whether the event can still be \
-            edited.
+            alarms, recurrence and attendees. Also reports whether it is past, in \
+            progress or upcoming.
 
             Needs an id from calendar_search. For a repeating series the id encodes which \
             occurrence you mean, so it cannot be shortened or reconstructed by hand.

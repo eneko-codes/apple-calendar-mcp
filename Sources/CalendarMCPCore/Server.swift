@@ -4,7 +4,7 @@ import MCP
 public enum CalendarMCPServer {
 
     public static let name = "apple-calendar-mcp"
-    public static let version = "1.0.0"
+    public static let version = "1.1.0"
 
     /// Returned from `initialize`. It carries what per-tool descriptions cannot state
     /// once: the id workflow and where policy actually lives.
