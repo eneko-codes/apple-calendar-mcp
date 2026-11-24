@@ -1,10 +1,9 @@
 import Foundation
-import MCP
 
 public enum CalendarMCPServer {
 
     public static let name = "apple-calendar-mcp"
-    public static let version = "1.2.0"
+    public static let version = "1.2.1"
 
     /// Returned from `initialize`. It carries what per-tool descriptions cannot state
     /// once: the id workflow and where policy actually lives.
@@ -32,23 +31,14 @@ public enum CalendarMCPServer {
 
     /// The store is a parameter so the whole server can be driven by a double. Nothing
     /// in this function opens a calendar by itself.
-    public static func run(store: any EventStore = SystemEventStore()) async throws {
-        let tools = CalendarTools(store: store)
-        let server = Server(
-            name: name,
-            version: version,
-            instructions: instructions,
-            capabilities: .init(tools: .init(listChanged: false))
-        )
-
-        await server.withMethodHandler(ListTools.self) { _ in .init(tools: ToolCatalog.all()) }
-        await server.withMethodHandler(CallTool.self) { await tools.handle($0) }
-
-        // The default StdioTransport logger is a no-op handler. Leave it that way: a
-        // logger writing to stdout would interleave with the JSON-RPC stream and break
-        // every response after the first log line.
+    public static func run(store: any EventStore = SystemEventStore()) async {
         Diagnostics.started(version: version)
-        try await server.start(transport: StdioTransport())
-        await server.waitUntilCompleted()
+        await serveStandardStreams(handler: handler(tools: CalendarTools(store: store)))
+    }
+
+    public static func handler(tools: CalendarTools) -> MCPHandler {
+        MCPHandler(
+            name: name, version: version, instructions: instructions,
+            catalog: ToolCatalog.all(), tools: tools)
     }
 }

@@ -1,5 +1,4 @@
 import Foundation
-import MCP
 import Testing
 
 @testable import CalendarMCPCore
@@ -17,10 +16,10 @@ struct CalendarToolsTests {
         let tools = CalendarTools(
             store: store, calendar: Fixtures.calendar, now: { Fixtures.now })
         let result = await tools.handle(.init(name: name, arguments: arguments))
-        guard case .text(let text, _, _) = result.content.first else {
+        guard case .text(let text) = result.content.first else {
             return ("(no text content)", true)
         }
-        return (text, result.isError ?? false)
+        return (text, result.isError)
     }
 
     // MARK: Catalogue
