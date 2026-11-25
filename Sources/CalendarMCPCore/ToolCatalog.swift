@@ -49,12 +49,33 @@ public enum ToolCatalog {
         .object(["type": .string("string"), "description": .string(description)])
     }
 
-    private static func integer(_ description: String, minimum: Int, maximum: Int, default def: Int)
+    private static func integer(_ description: String, range: ClosedRange<Int>, default def: Int)
         -> Value
     {
         .object([
             "type": .string("integer"), "description": .string(description),
-            "minimum": .int(minimum), "maximum": .int(maximum), "default": .int(def),
+            "minimum": .int(range.lowerBound), "maximum": .int(range.upperBound),
+            "default": .int(def),
+        ])
+    }
+
+    private static func limit(_ things: String, range: ClosedRange<Int>, default def: Int) -> Value {
+        integer("Maximum number of \(things) in one page.", range: range, default: def)
+    }
+
+    private static func offset(_ things: String) -> Value {
+        integer(
+            """
+            Number of \(things) to skip. A result that does not hold every one says, in its \
+            first lines, the offset to pass for the next page.
+            """, range: Configuration.offsetRange, default: 0)
+    }
+
+    private static func stringList(_ description: String) -> Value {
+        .object([
+            "type": .string("array"),
+            "items": .object(["type": .string("string")]),
+            "description": .string(description),
         ])
     }
 
@@ -81,7 +102,8 @@ public enum ToolCatalog {
         "description": .string(
             """
             Reminders relative to the start: "-15m", "-1h", "-1d", or "0" for the moment \
-            it begins. Negative means before.
+            it begins. Negative means before. Each must be within \
+            \(Configuration.alarmMinutesRange.upperBound / 1440) days of the start.
             """),
     ])
 
@@ -92,7 +114,8 @@ public enum ToolCatalog {
         title: "Calendar permission status",
         description: """
             Reports whether this server has permission to reach Calendar, and says exactly \
-            what to enable and where if it does not. Reads no events.
+            what to enable and where if it does not. Also lists the sizes its results keep \
+            to. Reads no events.
 
             Use it when another calendar tool fails on permissions, or when setting the \
             server up. Do not use it to look for events.
@@ -106,14 +129,22 @@ public enum ToolCatalog {
         name: listName,
         title: "List calendars",
         description: """
-            Lists every calendar with its account, whether it accepts writes, and which is \
-            the default for new events.
+            Lists the calendars, \(Configuration.defaultCalendarLimit) to a page in name \
+            order, each with its account, whether it accepts writes, and which is the \
+            default for new events. When there are more than the page holds, the first \
+            lines of the result give the offset of the next page: pass limit (up to \
+            \(Configuration.calendarLimitRange.upperBound)) and offset.
 
             Call this before create_event if you are not certain a calendar exists under \
             that exact name — subscribed and holiday calendars are read-only and will \
             refuse writes.
             """,
-        inputSchema: object(properties: [:]),
+        inputSchema: object(properties: [
+            "limit": limit(
+                "calendars", range: Configuration.calendarLimitRange,
+                default: Configuration.defaultCalendarLimit),
+            "offset": offset("calendars"),
+        ]),
         annotations: .init(
             readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
     )
@@ -122,37 +153,49 @@ public enum ToolCatalog {
         name: searchName,
         title: "Search calendar events",
         description: """
-            Finds events in a date range, optionally filtered by text and by calendar. \
-            Returns one line per event with its id, and echoes the range and time zone it \
-            actually used.
+            Finds events, \(Configuration.defaultSearchLimit) to a page, oldest first, one \
+            line each with day, time, title, calendar, location and id. With no argument \
+            it lists what is on from today onwards. A title, calendar name or location longer \
+            than \(Configuration.rowFieldWidth) characters is clipped in its row, and notes and \
+            attendees are left out: calendar_get reads one event in full. When more match \
+            than the page holds, the first lines of the result say so and give the offset \
+            of the next page: pass limit (up to \(Configuration.searchLimitRange.upperBound)) \
+            and offset.
 
-            'from' and 'to' are required and the range cannot exceed \(Configuration.maximumRangeDays) \
-            days: an unbounded calendar query is slow and rarely what was meant. Always \
-            search before calendar_get, update_event or delete_event — ids come from here.
+            from_date and to_date bound the search, and both days are included. from_date \
+            alone runs on with no end; to_date alone covers the \
+            \(Configuration.longestScanDays) days up to it. One call looks at no more than \
+            \(Configuration.longestScanDays) days, oldest first, and stops as soon as its \
+            page is full: when it stops before the end of the range, the first lines say \
+            how far it got and the from_date that continues from there. query filters by \
+            text in title, location and notes; calendars by calendar name. The result \
+            echoes the range and time zone it used.
+
+            Always search before calendar_get, update_event or delete_event — ids come \
+            from here.
             """,
         inputSchema: object(
             properties: [
-                "from": string("Start of the range (inclusive). \(dateHelp)"),
-                "to": string("End of the range (exclusive). \(dateHelp)"),
+                "from_date": string(
+                    """
+                    First day or moment of the range, included. Without it the search starts \
+                    today, or, when to_date is given, \(Configuration.longestScanDays) days \
+                    before to_date. \(dateHelp)
+                    """),
+                "to_date": string(
+                    """
+                    Last day or moment of the range, included: a plain day runs to the end \
+                    of that day. Without it the search runs on from from_date. \(dateHelp)
+                    """),
                 "query": string(
                     "Optional text to match against title, location and notes."),
-                "calendars": .object([
-                    "type": .string("array"),
-                    "items": .object(["type": .string("string")]),
-                    "description": .string(
-                        "Optional calendar names to search. Omit to search all of them."),
-                ]),
-                "limit": integer(
-                    "Maximum number of events to return.",
-                    minimum: Configuration.searchLimitRange.lowerBound,
-                    maximum: Configuration.searchLimitRange.upperBound,
-                    default: Configuration.searchLimit),
-                "offset": integer(
-                    "Skip this many matches; use it to page.",
-                    minimum: Configuration.offsetRange.lowerBound,
-                    maximum: Configuration.offsetRange.upperBound, default: 0),
-            ],
-            required: ["from", "to"]),
+                "calendars": stringList(
+                    "Optional calendar names to search. Omit to search all of them."),
+                "limit": limit(
+                    "events", range: Configuration.searchLimitRange,
+                    default: Configuration.defaultSearchLimit),
+                "offset": offset("events"),
+            ]),
         annotations: .init(
             readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
     )
@@ -161,15 +204,36 @@ public enum ToolCatalog {
         name: getName,
         title: "Full event record",
         description: """
-            Returns everything stored for one event: times, calendar, location, notes, \
-            alarms, recurrence and attendees. Also reports whether it is past, in \
-            progress or upcoming.
+            Returns one event's record: when it is, its calendar, whether it is past, in \
+            progress or upcoming, its id, alarms, recurrence, location, url, its first \
+            \(Configuration.defaultAttendeeLimit) attendees by name and its notes, up to \
+            \(Configuration.defaultMaxCharacters) characters in all. The first lines of the \
+            result say what it does not hold and how to get it: pass limit (up to \
+            \(Configuration.attendeeLimitRange.upperBound)) and offset for more attendees, \
+            and character_offset and max_characters (up to \
+            \(Configuration.maxCharactersRange.upperBound)) to read a long record one window \
+            at a time, keeping limit and offset the same from one window to the next.
 
             Needs an id from calendar_search. For a repeating series the id encodes which \
             occurrence you mean, so it cannot be shortened or reconstructed by hand.
             """,
         inputSchema: object(
-            properties: ["id": string("Identifier returned by calendar_search.")],
+            properties: [
+                "id": string("Identifier returned by calendar_search."),
+                "limit": limit(
+                    "attendees", range: Configuration.attendeeLimitRange,
+                    default: Configuration.defaultAttendeeLimit),
+                "offset": offset("attendees"),
+                "character_offset": integer(
+                    """
+                    Number of characters of the record to skip. A result that does not hold \
+                    all of it says, in its first lines, the value to pass for the rest.
+                    """, range: Configuration.offsetRange, default: 0),
+                "max_characters": integer(
+                    "The most characters of the record to return.",
+                    range: Configuration.maxCharactersRange,
+                    default: Configuration.defaultMaxCharacters),
+            ],
             required: ["id"]),
         annotations: .init(
             readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
@@ -181,8 +245,10 @@ public enum ToolCatalog {
         name: createName,
         title: "Create an event",
         description: """
-            Adds an event to a calendar. If both 'start' and 'end' are plain days \
-            (2026-08-12) the event is all-day; otherwise it is timed.
+            Adds an event to a calendar and answers with a short receipt: its title, when \
+            it is and the id to use from then on. calendar_get returns the full record. If \
+            both 'start' and 'end' are plain days (2026-08-12) the event is all-day; \
+            otherwise it is timed.
 
             It CANNOT invite anyone: EventKit does not allow adding attendees, so guests \
             must be invited from Calendar.app. It also cannot create a repeating event — \
@@ -210,8 +276,11 @@ public enum ToolCatalog {
         name: updateName,
         title: "Modify an event",
         description: """
-            Changes fields on an existing event. Omitting a field leaves it as it is; \
-            pass "" to empty location, notes or url, and [] to remove every alarm.
+            Changes fields on an existing event and answers with a short receipt: the \
+            fields changed, when the event now is and its id, which changes when an \
+            occurrence of a series is moved. calendar_get returns the full record. Omitting \
+            a field leaves it as it is; pass "" to empty location, notes or url, and [] to \
+            remove every alarm.
 
             Works on past, in-progress and upcoming events alike. For a repeating series, \
             'span' decides whether the change hits one occurrence or all later ones — \
@@ -232,13 +301,10 @@ public enum ToolCatalog {
                 "location": clearableString("New location. \"\" clears it."),
                 "notes": clearableString("New notes. \"\" clears them."),
                 "url": clearableString("New URL. \"\" clears it."),
-                "alarms": .object([
-                    "type": .string("array"),
-                    "items": .object(["type": .string("string")]),
-                    "description": .string(
-                        "Replaces ALL alarms. [] removes them. Format: \"-15m\", \"-1h\", \"-1d\"."
-                    ),
-                ]),
+                "alarms": stringList(
+                    "Replaces ALL alarms. [] removes them. Format: \"-15m\", \"-1h\", \"-1d\", "
+                        + "each within \(Configuration.alarmMinutesRange.upperBound / 1440) days of the start."
+                ),
             ],
             required: ["id"]),
         annotations: .init(
@@ -249,8 +315,10 @@ public enum ToolCatalog {
         name: deleteName,
         title: "Delete an event",
         description: """
-            Permanently deletes an event. Requires confirm=true and returns the full record \
-            it removed together with a create_event call that would restore it.
+            Permanently deletes an event. Requires confirm=true and returns what it \
+            removed, once, as the arguments create_event needs to make a new event like \
+            it, up to \(Configuration.deletedRecordCharacters) characters. Nothing can read \
+            the event afterwards: read one with long notes through calendar_get first.
 
             Works on past, in-progress and upcoming events alike. For a repeating series, \
             'span' decides whether one occurrence or every later one is removed — check \
@@ -262,6 +330,7 @@ public enum ToolCatalog {
                 "span": spanProperty,
                 "confirm": .object([
                     "type": .string("boolean"),
+                    "default": .bool(false),
                     "description": .string("Must be true. Without it the call is refused."),
                 ]),
             ],

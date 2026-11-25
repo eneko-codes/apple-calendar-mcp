@@ -16,8 +16,12 @@ public enum ToolError: Error, Equatable {
     case notAuthorized(CalendarAuthorization)
     case missingArgument(String)
     case badArgument(name: String, reason: String)
+    case unknownTool(String)
+    case unknownArgument(name: String, tool: String, taken: [String])
     case badDate(argument: String, value: String)
-    case rangeTooLong(days: Int, maximum: Int)
+    case nonexistentDate(argument: String, value: String)
+    case alarmTooFar
+    case rangeEndsBeforeItStarts
     case endBeforeStart
     case notFound(id: String)
     case calendarNotFound(title: String, available: [String])
@@ -26,6 +30,15 @@ public enum ToolError: Error, Equatable {
     case confirmationRequired(action: String)
     case nothingToUpdate
     case storeFailure(String)
+    case timedOut(seconds: Int)
+
+    /// A list short enough for an error or a header: the first few names, each clipped, and
+    /// the number of the others.
+    static func few(_ names: [String]) -> String {
+        let shown = names.prefix(Configuration.fewNames).map(ToolStandard.echo)
+        let others = names.count - shown.count
+        return shown.joined(separator: ", ") + (others > 0 ? " and \(others) more" : "")
+    }
 
     public var message: String {
         switch self {
@@ -38,9 +51,16 @@ public enum ToolError: Error, Equatable {
         case .badArgument(let name, let reason):
             return "Argument '\(name)' is not valid: \(reason)"
 
+        case .unknownTool(let name):
+            return "'\(ToolStandard.echo(name))' is not a tool of this server."
+
+        case .unknownArgument(let name, let tool, let taken):
+            let list = taken.isEmpty ? "It takes no arguments." : "It takes: \(taken.joined(separator: ", "))."
+            return "'\(ToolStandard.echo(name))' is not an argument of \(tool). \(list)"
+
         case .badDate(let argument, let value):
             return """
-                Argument '\(argument)' is not a date this server accepts: '\(value)'
+                Argument '\(argument)' is not a date this server accepts: '\(ToolStandard.echo(value))'
 
                 Use one of:
                 \(DateParsing.acceptedForms)
@@ -48,12 +68,25 @@ public enum ToolError: Error, Equatable {
                 Both start and end given as a plain day makes an all-day event.
                 """
 
-        case .rangeTooLong(let days, let maximum):
+        case .nonexistentDate(let argument, let value):
             return """
-                The requested range spans \(days) days; the maximum is \(maximum).
+                Argument '\(argument)' names a day or a time that does not exist: '\(ToolStandard.echo(value))'
 
-                EventKit degrades badly over long spans, and a mistyped range can sweep a
-                decade. Narrow 'from' and 'to', and page with 'offset' if needed.
+                Check the day of the month, and that the time is not one the clocks skip when
+                they go forward. Nothing was moved to a nearby date.
+                """
+
+        case .alarmTooFar:
+            let days = Configuration.alarmMinutesRange.upperBound / 1440
+            return """
+                Argument 'alarms' is not valid: an alarm must be within \(days) days of the \
+                start, as "-15m", "-1h", "-1d" or "0".
+                """
+
+        case .rangeEndsBeforeItStarts:
+            return """
+                'to_date' is before 'from_date'. Pass a range that starts before it ends, for \
+                example from_date=2026-08-01 and to_date=2026-08-31; both days are included.
                 """
 
         case .endBeforeStart:
@@ -61,7 +94,7 @@ public enum ToolError: Error, Equatable {
 
         case .notFound(let id):
             return """
-                No event exists with id '\(id)'.
+                No event exists with id '\(ToolStandard.echo(id))'.
 
                 Event identifiers change when an account is resynchronised, and an
                 occurrence id also encodes its start time. Find it again with
@@ -69,18 +102,18 @@ public enum ToolError: Error, Equatable {
                 """
 
         case .calendarNotFound(let title, let available):
-            let list = available.isEmpty ? "(none writable)" : available.joined(separator: ", ")
+            let list = available.isEmpty ? "(none writable)" : Self.few(available)
             return """
-                No calendar named '\(title)'.
+                No calendar named '\(ToolStandard.echo(title))'.
 
                 Writable calendars: \(list)
 
-                Call calendars_list for the full picture, including read-only ones.
+                Call calendars_list for every calendar, including read-only ones.
                 """
 
         case .calendarReadOnly(let title):
             return """
-                Calendar '\(title)' is read-only, so nothing can be written to it.
+                Calendar '\(ToolStandard.echo(title))' is read-only, so nothing can be written to it.
 
                 Subscribed and holiday calendars are read-only by nature. Call
                 calendars_list to see which ones accept writes.
@@ -88,7 +121,7 @@ public enum ToolError: Error, Equatable {
 
         case .cannotMoveRecurringEvent(let title):
             return """
-                Cannot move '\(title)' to another calendar: it is part of a recurring series.
+                Cannot move '\(ToolStandard.echo(title))' to another calendar: it is part of a recurring series.
 
                 EventKit has no concept of one occurrence living in a different calendar
                 from the rest of the series, so a recurring event's calendar is not
@@ -113,7 +146,20 @@ public enum ToolError: Error, Equatable {
                 """
 
         case .storeFailure(let detail):
-            return "Calendar returned an error: \(detail)"
+            // EventKit's own wording, which this server does not control the length of.
+            let shown = detail.count > Configuration.storeFailureWidth
+                ? String(detail.prefix(Configuration.storeFailureWidth)) + "…" : detail
+            return "Calendar returned an error: \(shown)"
+
+        case .timedOut(let seconds):
+            return """
+                The call did not finish within \(seconds) seconds and was abandoned.
+
+                If macOS is showing a dialog asking for access to Calendar, answer it and \
+                call again. A search can be narrowed with from_date and to_date. A write \
+                that was abandoned may still go through: look the event up with \
+                calendar_search before trying it again.
+                """
         }
     }
 

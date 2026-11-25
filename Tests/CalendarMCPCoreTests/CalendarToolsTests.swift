@@ -9,19 +9,6 @@ import Testing
 @Suite("Tool dispatch")
 struct CalendarToolsTests {
 
-    private func call(
-        _ name: String, _ arguments: [String: Value] = [:],
-        store: FakeEventStore = FakeEventStore()
-    ) async -> (text: String, isError: Bool) {
-        let tools = CalendarTools(
-            store: store, calendar: Fixtures.calendar, now: { Fixtures.now })
-        let result = await tools.handle(.init(name: name, arguments: arguments))
-        guard case .text(let text) = result.content.first else {
-            return ("(no text content)", true)
-        }
-        return (text, result.isError)
-    }
-
     // MARK: Catalogue
 
     /// One pass over the catalogue for everything that must hold for every tool: a
@@ -132,6 +119,12 @@ struct CalendarToolsTests {
         #expect(try Arguments.alarmMinutes("-1d") == -1440)
         #expect(try Arguments.alarmMinutes("0") == 0)
         #expect(throws: ToolError.self) { try Arguments.alarmMinutes("soon") }
+        // A number of days no Int can hold in minutes is refused, not multiplied.
+        #expect(throws: ToolError.alarmTooFar) { try Arguments.alarmMinutes("9223372036854775807d") }
+        let limit = Configuration.alarmMinutesRange.upperBound
+        #expect(try Arguments.alarmMinutes("\(limit)m") == limit)
+        #expect(throws: ToolError.alarmTooFar) { try Arguments.alarmMinutes("\(limit + 1)m") }
+        #expect(throws: ToolError.alarmTooFar) { try Arguments.alarmMinutes("-\(limit + 1)") }
     }
 
     // MARK: Permissions
@@ -167,7 +160,7 @@ struct CalendarToolsTests {
     @Test("Search echoes the range and time zone it used")
     func searchEchoesRange() async {
         let result = await call(
-            "calendar_search", ["from": .string("2026-08-01"), "to": .string("2026-08-31")])
+            "calendar_search", ["from_date": .string("2026-08-01"), "to_date": .string("2026-08-31")])
         #expect(!result.isError)
         #expect(result.text.contains("2026-08-01 → 2026-08-31"))
         #expect(result.text.contains("Europe/Madrid"))
@@ -176,32 +169,26 @@ struct CalendarToolsTests {
     @Test("A recurring hit is marked and carries an occurrence id")
     func recurringHitIsMarked() async {
         let result = await call(
-            "calendar_search", ["from": .string("2026-08-13"), "to": .string("2026-08-15")])
+            "calendar_search", ["from_date": .string("2026-08-13"), "to_date": .string("2026-08-15")])
         #expect(result.text.contains("series"))
         #expect(result.text.contains("id=ev-series|"))
     }
 
-    @Test("A truncated page announces what it withheld")
+    @Test("A page that does not hold every match says so before the data, with the next call")
     func truncationIsAnnounced() async {
         let result = await call(
             "calendar_search",
-            ["from": .string("2026-08-01"), "to": .string("2026-08-31"), "limit": .int(2)])
-        #expect(result.text.contains("more · call again with offset=2"))
+            ["from_date": .string("2026-08-01"), "to_date": .string("2026-08-31"), "limit": .int(2)])
+        #expect(result.text.hasPrefix("Showing 1–2 of 5 events. Pass offset=2 for the next page.\n\n"))
     }
 
-    @Test("A range longer than the cap is refused")
-    func longRangeIsRefused() async {
-        let result = await call(
-            "calendar_search", ["from": .string("2020-01-01"), "to": .string("2030-01-01")])
-        #expect(result.isError)
-        #expect(result.text.contains("maximum is 366"))
-    }
-
-    @Test("A range that runs backwards is refused")
+    @Test("A range that runs backwards is refused, with the form expected")
     func backwardsRangeIsRefused() async {
         let result = await call(
-            "calendar_search", ["from": .string("2026-08-31"), "to": .string("2026-08-01")])
+            "calendar_search", ["from_date": .string("2026-08-31"), "to_date": .string("2026-08-01")])
         #expect(result.isError)
+        #expect(result.text.contains("'to_date' is before 'from_date'"))
+        #expect(result.text.contains("from_date=2026-08-01 and to_date=2026-08-31"))
     }
 
     // MARK: Editing past events
@@ -423,11 +410,19 @@ struct CalendarToolsTests {
         let result = await call(
             "delete_event", ["id": .string("ev-future"), "confirm": .bool(true)], store: store)
         #expect(!result.isError)
-        #expect(result.text.contains("Dentist"))
-        #expect(result.text.contains("Clinic"))
-        #expect(result.text.contains("create_event("))
-        #expect(result.text.contains("start=\"2026-08-12T16:00\""))
-        #expect(result.text.contains("no longer exists"))
+        #expect(result.text.contains("Deleted 'Dentist' from Personal. Its id no longer exists: ev-future"))
+        #expect(result.text.contains("create_event with these arguments"))
+        // The arguments as create_event takes them, each once.
+        #expect(
+            result.text.hasSuffix(
+                """
+                  calendar Personal
+                  title    Dentist
+                  start    2026-08-12T16:00
+                  end      2026-08-12T16:30
+                  location Clinic
+                  alarms   "-60m"
+                """))
     }
 
     /// The recreate line cannot restore a recurrence rule, so it must say so.

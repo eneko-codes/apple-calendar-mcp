@@ -232,13 +232,15 @@ public struct EventChanges: Sendable, Equatable {
     public var isEmpty: Bool { changedFields.isEmpty }
 }
 
-public struct EventSearchPage: Sendable, Equatable {
-    public let results: [EventSummary]
-    /// Total matches, not the number returned, so the formatter can say what it withheld.
-    public let total: Int
+/// What one query of the store found in one span of time.
+public struct EventScan: Sendable, Equatable {
+    public let matches: [EventSummary]
+    /// How many events the store looked at before the text filter, so a search that stops
+    /// early can say how far it got.
+    public let examined: Int
 
-    public init(results: [EventSummary], total: Int) {
-        self.results = results
-        self.total = total
+    public init(matches: [EventSummary], examined: Int) {
+        self.matches = matches
+        self.examined = examined
     }
 }

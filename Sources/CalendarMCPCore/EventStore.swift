@@ -14,11 +14,11 @@ public protocol EventStore: Sendable {
 
     func calendars() async throws -> [CalendarInfo]
 
-    /// `offset` indexes into the matches for the range. EventKit has no cursor of its
-    /// own, and the range already bounds the result set.
-    func search(
-        query: String?, from: Date, to: Date, calendarTitles: [String], limit: Int, offset: Int
-    ) async throws -> EventSearchPage
+    /// Every event that overlaps `from`–`to`, in no particular order. The caller keeps the
+    /// span within `Configuration.scanChunkDays`, orders the events and pages them: EventKit
+    /// has no cursor and no order of its own.
+    func search(query: String?, from: Date, to: Date, calendarTitles: [String]) async throws
+        -> EventScan
 
     func fetch(id: EventID) async throws -> EventDetail?
     func create(_ draft: EventDraft) async throws -> EventDetail
