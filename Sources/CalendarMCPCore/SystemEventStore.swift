@@ -70,9 +70,9 @@ public struct SystemEventStore: EventStore {
 
     // MARK: Reads
 
-    public func search(
-        query: String?, from: Date, to: Date, calendarTitles: [String], limit: Int, offset: Int
-    ) async throws -> EventSearchPage {
+    public func search(query: String?, from: Date, to: Date, calendarTitles: [String]) async throws
+        -> EventScan
+    {
         let store = EKEventStore()
 
         let calendars: [EKCalendar]?
@@ -80,12 +80,13 @@ public struct SystemEventStore: EventStore {
         case .everyCalendar: calendars = nil
         case .calendars(let list): calendars = list
         // Fail closed: a filter that matched no calendar means no events, not all of them.
-        case .nothingMatched: return EventSearchPage(results: [], total: 0)
+        case .nothingMatched: return EventScan(matches: [], examined: 0)
         }
 
         let predicate = store.predicateForEvents(withStart: from, end: to, calendars: calendars)
 
-        var matches = store.events(matching: predicate)
+        let found = store.events(matching: predicate)
+        var matches = found
         if let needle = query?.trimmingCharacters(in: .whitespacesAndNewlines), !needle.isEmpty {
             matches = matches.filter { event in
                 [event.title, event.location, event.notes]
@@ -93,10 +94,7 @@ public struct SystemEventStore: EventStore {
                     .contains { $0.localizedCaseInsensitiveContains(needle) }
             }
         }
-        matches.sort { ($0.startDate ?? .distantPast) < ($1.startDate ?? .distantPast) }
-
-        let page = matches.dropFirst(offset).prefix(limit).map(summary(from:))
-        return EventSearchPage(results: Array(page), total: matches.count)
+        return EventScan(matches: matches.map(summary(from:)), examined: found.count)
     }
 
     public func fetch(id: EventID) async throws -> EventDetail? {

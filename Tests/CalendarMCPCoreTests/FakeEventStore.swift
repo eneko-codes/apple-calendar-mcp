@@ -13,6 +13,10 @@ final class FakeEventStore: EventStore, @unchecked Sendable {
     private(set) var deleted: [(id: EventID, span: EventSpan)] = []
     private(set) var updated: [(id: EventID, span: EventSpan)] = []
     private(set) var accessRequests = 0
+    /// The span of every query, in the order they were made.
+    private(set) var searches: [(from: Date, to: Date)] = []
+    /// Makes every query take this long, to stand in for a calendar that does not answer.
+    var searchDelay: Duration?
 
     init(
         status: CalendarAuthorization = .fullAccess,
@@ -35,27 +39,31 @@ final class FakeEventStore: EventStore, @unchecked Sendable {
 
     func calendars() async throws -> [CalendarInfo] { calendarList }
 
-    func search(
-        query: String?, from: Date, to: Date, calendarTitles: [String], limit: Int, offset: Int
-    ) async throws -> EventSearchPage {
-        var matches = events.filter { $0.start >= from && $0.start < to }
+    /// Like EventKit: every event that overlaps the span, in no order a caller may rely
+    /// on. Reversed, so a test that passes proves the tool layer did the sorting.
+    func search(query: String?, from: Date, to: Date, calendarTitles: [String]) async throws
+        -> EventScan
+    {
+        searches.append((from, to))
+        if let searchDelay { try? await Task.sleep(for: searchDelay) }
+        var inSpan = events.filter { $0.start < to && ($0.end > from || $0.start >= from) }
         if !calendarTitles.isEmpty {
-            matches = matches.filter { calendarTitles.contains($0.calendarTitle) }
+            inSpan = inSpan.filter { calendarTitles.contains($0.calendarTitle) }
         }
+        var matches = inSpan
         if let needle = query, !needle.isEmpty {
-            matches = matches.filter {
-                $0.title.localizedCaseInsensitiveContains(needle)
-                    || ($0.location ?? "").localizedCaseInsensitiveContains(needle)
+            matches = matches.filter { event in
+                [event.title, event.location, event.notes].compactMap { $0 }
+                    .contains { $0.localizedCaseInsensitiveContains(needle) }
             }
         }
-        matches.sort { $0.start < $1.start }
-        let page = matches.dropFirst(offset).prefix(limit).map {
+        let summaries = matches.reversed().map {
             EventSummary(
                 id: $0.id, title: $0.title, start: $0.start, end: $0.end, isAllDay: $0.isAllDay,
                 calendarTitle: $0.calendarTitle, location: $0.location,
                 isRecurring: $0.isRecurring)
         }
-        return EventSearchPage(results: Array(page), total: matches.count)
+        return EventScan(matches: Array(summaries), examined: inSpan.count)
     }
 
     func fetch(id: EventID) async throws -> EventDetail? {
@@ -67,7 +75,7 @@ final class FakeEventStore: EventStore, @unchecked Sendable {
             id: "created-\(events.count + 1)",
             title: draft.title, start: draft.start, end: draft.end,
             calendarTitle: draft.calendarTitle, isAllDay: draft.isAllDay,
-            location: draft.location, notes: draft.notes,
+            location: draft.location, notes: draft.notes, url: draft.url,
             alarms: draft.alarmOffsetsMinutes)
         events.append(created)
         return created
@@ -111,9 +119,11 @@ final class FakeEventStore: EventStore, @unchecked Sendable {
             isAllDay: current.isAllDay,
             location: applied(changes.location, current.location),
             notes: applied(changes.notes, current.notes),
+            url: applied(changes.url, current.url),
             alarms: applied(changes.alarmOffsetsMinutes, current.alarmOffsetsMinutes) ?? [],
             isRecurring: current.isRecurring,
-            occurrenceStart: current.id.occurrenceStart)
+            occurrenceStart: current.id.occurrenceStart,
+            attendees: current.attendees)
         events[index] = next
         return next
     }
@@ -125,6 +135,23 @@ final class FakeEventStore: EventStore, @unchecked Sendable {
         deleted.append((id, span))
         return events.remove(at: index)
     }
+}
+
+struct ToolResult: Sendable {
+    var text: String
+    var isError: Bool
+}
+
+/// One `tools/call` against a double, at the fixed instant of `Fixtures`.
+func call(
+    _ name: String, _ arguments: [String: Value] = [:], store: FakeEventStore = FakeEventStore(),
+    timeout: Duration = Configuration.callTimeout, scanBudget: Duration = Configuration.scanBudget
+) async -> ToolResult {
+    let tools = CalendarTools(
+        store: store, calendar: Fixtures.calendar, now: { Fixtures.now }, timeout: timeout,
+        scanBudget: scanBudget)
+    let result = await tools.handle(.init(name: name, arguments: arguments))
+    return ToolResult(text: result.text, isError: result.isError)
 }
 
 enum Fixtures {
@@ -171,6 +198,7 @@ enum Fixtures {
         isAllDay: Bool = false,
         location: String? = nil,
         notes: String? = nil,
+        url: String? = nil,
         alarms: [Int] = [],
         isRecurring: Bool = false,
         occurrenceStart: Date? = nil,
@@ -180,7 +208,7 @@ enum Fixtures {
             id: EventID(seriesIdentifier: id, occurrenceStart: occurrenceStart),
             title: title, start: start, end: end, isAllDay: isAllDay,
             calendarTitle: calendarTitle, calendarIsWritable: calendarIsWritable,
-            location: location, notes: notes, url: nil, alarmOffsetsMinutes: alarms,
+            location: location, notes: notes, url: url, alarmOffsetsMinutes: alarms,
             isRecurring: isRecurring,
             recurrenceSummary: isRecurring ? "every week" : nil,
             attendees: attendees, timeZoneIdentifier: timeZone.identifier)
